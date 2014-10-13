@@ -163,15 +163,12 @@ void initFunctions(KalmanFilter KF){
 
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    Mat cameraFeed;
+    Mat cameraFeed,skinMat,null;
     skindetector mySkinDetector;
-    Mat skinMat;
     vector<vector<Point> > contours;
 	vector<Vec4i> hierarchy;
-	double contourArea;
 	cv:RNG rng;	
 	KalmanFilter KF(4, 2, 0);
-	Mat_<float> measurement(2,1); measurement.setTo(Scalar(0));
 	initFunctions(KF);
  
 
@@ -199,45 +196,46 @@ int main(int argc, const char *argv[]) {
     //start an infinite loop where webcam feed is copied to cameraFeed matrix
     //all of our operations will be performed within this loop
     while(1){
+		double contourArea = 0;
 
         //store image to matrix
         capture.read(cameraFeed);
 
         //show the current image
         skinMat= mySkinDetector.getSkin(cameraFeed);
-        cv::erode(skinMat, skinMat, element);
-		
+		cv::erode(skinMat, skinMat, element);
+		cv::dilate(skinMat, skinMat, element); 
+
 		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0));
       
-		vector<Moments> mu(contours.size() );
 
+	    int j = -1;
 		for( int i = 0; i< contours.size(); i++) {
 			if(cv::contourArea(contours[i]) > 500){
-				drawContours( skinMat, contours, i,color, 1, 4, hierarchy, 0, Point() );
-				mu[i] = moments( contours[i], false );
+				if(cv::contourArea(contours[i]) > contourArea){
+					contourArea = cv::contourArea(contours[i]);
+					j = i;
+				}
+				drawContours( skinMat, contours, i,color, 1.5, 1, hierarchy, CV_16SC1, Point() );
 			}
 		}
 
-	  vector<Point2f> mc( contours.size() );
-      for( size_t i = 0; i < contours.size(); i++ )
-        { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
+		Moments mu;
+		cv::Rect rect1;
+		rect1.x = 0;
+		rect1.y = 0;
+		rect1.width = 320;
+		rect1.height = 480;		
+		Point2f mc = -1;
 
-      Mat prediction = KF.predict();
-      Point predictPt(prediction.at<float>(0),prediction.at<float>(1));
-	  
-	  for(size_t i = 0; i < mc.size(); i++)
-        {
-		drawCross(cameraFeed, mc[i], Scalar(255, 0, 0), 5);
-          measurement(0) = mc[i].x;
-          measurement(1) = mc[i].y;
-        }
+		if(j >= 0){
+			mu = moments( contours[j], false );
+			mc = Point2f( mu.m10/mu.m00 , mu.m01/mu.m00 ); 
+			drawCross(cameraFeed, mc, Scalar(255, 0, 0), 5);
+		}
+ 
+		printf("%d", mc.inside(rect1));
 
-	  Mat estimated = KF.correct(measurement);
-      Point statePt(estimated.at<float>(0),estimated.at<float>(1));
-
-	  printf("x: %d\ny: %d\n",estimated.at<float>(0),estimated.at<float>(1));
-	  drawCross(cameraFeed, statePt, Scalar(128, 128, 128), 5);
-	  
 
 		//searchForMovement(skinMat,cameraFeed);
 

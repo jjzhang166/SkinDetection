@@ -1,16 +1,14 @@
-﻿Build started 12/10/2014 18:01:53.
+﻿Build started 13/10/2014 14:14:15.
      1>Project "D:\gitHub\SkinDetection\SkinDetection\SkinDetection.vcxproj" on node 2 (Build target(s)).
      1>ClCompile:
          D:\VisualStudio\VC\bin\CL.exe /c /IC:\opencv\build\include\opencv /IC:\opencv\build\include\opencv2 /IC:\opencv\build\include /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc110.pdb" /Gd /TP /analyze- /errorReport:prompt Main.cpp
          Main.cpp
      1>d:\github\skindetection\skindetection\main.cpp(110): warning C4018: '<' : signed/unsigned mismatch
-     1>d:\github\skindetection\skindetection\main.cpp(214): warning C4018: '<' : signed/unsigned mismatch
-     1>d:\github\skindetection\skindetection\main.cpp(223): warning C4244: 'argument' : conversion from 'double' to 'float', possible loss of data
-     1>d:\github\skindetection\skindetection\main.cpp(226): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>d:\github\skindetection\skindetection\main.cpp(230): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>d:\github\skindetection\skindetection\main.cpp(236): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
-     1>d:\github\skindetection\skindetection\main.cpp(172): warning C4102: 'cv' : unreferenced label
-     1>d:\github\skindetection\skindetection\main.cpp(171): warning C4101: 'contourArea' : unreferenced local variable
+     1>d:\github\skindetection\skindetection\main.cpp(213): warning C4018: '<' : signed/unsigned mismatch
+     1>d:\github\skindetection\skindetection\main.cpp(219): warning C4244: 'argument' : conversion from 'double' to 'int', possible loss of data
+     1>d:\github\skindetection\skindetection\main.cpp(233): warning C4244: 'argument' : conversion from 'double' to 'float', possible loss of data
+     1>d:\github\skindetection\skindetection\main.cpp(234): warning C4244: 'argument' : conversion from 'float' to 'int', possible loss of data
+     1>d:\github\skindetection\skindetection\main.cpp(170): warning C4102: 'cv' : unreferenced label
        Link:
          D:\VisualStudio\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"D:\gitHub\SkinDetection\Debug\SkinDetection.exe" /INCREMENTAL /NOLOGO /LIBPATH:C:\opencv\build\x86\vc11\lib opencv_calib3d249d.lib opencv_contrib249d.lib opencv_core249d.lib opencv_features2d249d.lib opencv_flann249d.lib opencv_gpu249d.lib opencv_highgui249d.lib opencv_imgproc249d.lib opencv_legacy249d.lib opencv_ml249d.lib opencv_nonfree249d.lib opencv_objdetect249d.lib opencv_ocl249d.lib opencv_photo249d.lib opencv_stitching249d.lib opencv_superres249d.lib opencv_video249d.lib opencv_videostab249d.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:\gitHub\SkinDetection\Debug\SkinDetection.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"D:\gitHub\SkinDetection\Debug\SkinDetection.lib" /MACHINE:X86 Debug\Main.obj
          SkinDetection.vcxproj -> D:\gitHub\SkinDetection\Debug\SkinDetection.exe
@@ -18,4 +16,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:02.39
+Time Elapsed 00:00:02.22
