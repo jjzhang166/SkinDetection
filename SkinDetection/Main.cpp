@@ -170,8 +170,10 @@ int main(int argc, const char *argv[]) {
 	cv:RNG rng;	
 	KalmanFilter KF(4, 2, 0);
 	initFunctions(KF);
- 
-
+	bool flag = false;
+	int numberOfPeople = 0;
+	cv::Rect window;
+	int windowHeight = 480, windowWidth = 320;
 
 
 	//open capture object at location zero (default location for webcam)
@@ -179,10 +181,13 @@ int main(int argc, const char *argv[]) {
     capture.open(0);
 
     //set height and width of capture frame
-    capture.set(CV_CAP_PROP_FRAME_WIDTH,320);
-    capture.set(CV_CAP_PROP_FRAME_HEIGHT,480);
+	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
+	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);
 
-
+	window.x = 0;
+	window.y = 0;
+	window.width = windowWidth;
+	window.height = windowHeight;
 
      //Create a structuring element
     int erosion_size = 2;
@@ -211,7 +216,7 @@ int main(int argc, const char *argv[]) {
 
 	    int j = -1;
 		for( int i = 0; i< contours.size(); i++) {
-			if(cv::contourArea(contours[i]) > 500){
+			if(cv::contourArea(contours[i]) > 700){
 				if(cv::contourArea(contours[i]) > contourArea){
 					contourArea = cv::contourArea(contours[i]);
 					j = i;
@@ -220,12 +225,7 @@ int main(int argc, const char *argv[]) {
 			}
 		}
 
-		Moments mu;
-		cv::Rect rect1;
-		rect1.x = 0;
-		rect1.y = 0;
-		rect1.width = 320;
-		rect1.height = 480;		
+		Moments mu;	
 		Point2f mc = -1;
 
 		if(j >= 0){
@@ -234,9 +234,16 @@ int main(int argc, const char *argv[]) {
 			drawCross(cameraFeed, mc, Scalar(255, 0, 0), 5);
 		}
  
-		printf("%d", mc.inside(rect1));
+		if(mc.inside(window) && flag == false){
+			numberOfPeople++;
+			flag = true;
+			printf("%d ",numberOfPeople);
+		}
 
+		if(!mc.inside(window))
+			flag = false;
 
+		
 		//searchForMovement(skinMat,cameraFeed);
 
 		imshow("Skin Image",skinMat);
