@@ -1,6 +1,16 @@
 #include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/video/tracking.hpp>
+
 using namespace std;
 using namespace cv;
+
+#define drawCross( img, center, color, d )\
+line(img, Point(center.x - d, center.y - d), Point(center.x + d, center.y + d), color, 2, CV_AA, 0);\
+line(img, Point(center.x + d, center.y - d), Point(center.x - d, center.y + d), color, 2, CV_AA, 0 )\
+
 
 //our sensitivity value to be used in the absdiff() function
 const static int SENSITIVITY_VALUE = 20;
@@ -83,7 +93,6 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 	//findContours(temp,contours,hierarchy,CV_RETR_CCOMP,CV_CHAIN_APPROX_SIMPLE );// retrieves all contours
 	findContours(temp,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE );// retrieves external contours
 	
-
 	//if contours vector is not empty, we have found some objects
 	if(contours.size()>0) objectDetected=true;
 	else objectDetected = false;
@@ -117,7 +126,7 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 		}
 
 		//printf("%d\n",largestContourVec[0].size());
-		printf("Xmax: %d\nXmin: %d\nYMax: %d\nYMin: %d\n",xMax,xMin,yMax,yMin);
+		//printf("Xmax: %d\nXmin: %d\nYMax: %d\nYMin: %d\n",xMax,xMin,yMax,yMin);
 
 		//update the objects positions by changing the 'theObject' array values
 	}
@@ -135,14 +144,40 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 	line(cameraFeed,Point(xMin,yMin),Point(xMin,yMax),Scalar(0,0,255),1);
 	
 	//write the position of the object to the screen
+}
 
-	
+void initFunctions(KalmanFilter KF){
+	KF.statePre.at<float>(0) = 0;
+    KF.statePre.at<float>(1) = 0;
+    KF.statePre.at<float>(2) = 0;
+    KF.statePre.at<float>(3) = 0;
 
+    KF.transitionMatrix = *(Mat_<float>(4, 4) << 1,0,1,0,   0,1,0,1,  0,0,1,0,  0,0,0,1); // Including velocity
+    KF.processNoiseCov = *(cv::Mat_<float>(4,4) << 0.2,0,0.2,0,  0,0.2,0,0.2,  0,0,0.3,0,  0,0,0,0.3);
+
+    setIdentity(KF.measurementMatrix);
+    setIdentity(KF.processNoiseCov, Scalar::all(1e-4));
+    setIdentity(KF.measurementNoiseCov, Scalar::all(1e-1));
+    setIdentity(KF.errorCovPost, Scalar::all(.1));
 }
 
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    //open capture object at location zero (default location for webcam)
+    Mat cameraFeed;
+    skindetector mySkinDetector;
+    Mat skinMat;
+    vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+	double contourArea;
+	cv:RNG rng;	
+	KalmanFilter KF(4, 2, 0);
+	Mat_<float> measurement(2,1); measurement.setTo(Scalar(0));
+	initFunctions(KF);
+ 
+
+
+
+	//open capture object at location zero (default location for webcam)
 
     capture.open(0);
 
@@ -150,9 +185,7 @@ int main(int argc, const char *argv[]) {
     capture.set(CV_CAP_PROP_FRAME_WIDTH,320);
     capture.set(CV_CAP_PROP_FRAME_HEIGHT,480);
 
-    Mat cameraFeed;
 
-    skindetector mySkinDetector;
 
      //Create a structuring element
     int erosion_size = 2;
@@ -160,11 +193,7 @@ int main(int argc, const char *argv[]) {
                                         cv::Size(erosion_size +1 ,erosion_size + 1),
                                         cv::Point(erosion_size, erosion_size) );
     
-    Mat skinMat;
-    vector<vector<Point> > contours;
-	vector<Vec4i> hierarchy;
-	double contourArea;
-	cv:RNG rng;
+
 	Scalar color = Scalar( rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255) );
 
     //start an infinite loop where webcam feed is copied to cameraFeed matrix
@@ -179,16 +208,38 @@ int main(int argc, const char *argv[]) {
         cv::erode(skinMat, skinMat, element);
 		
 		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0));
+      
+		vector<Moments> mu(contours.size() );
 
 		for( int i = 0; i< contours.size(); i++) {
-			if(cv::contourArea(contours[i]) > 200){
+			if(cv::contourArea(contours[i]) > 500){
 				drawContours( skinMat, contours, i,color, 1, 4, hierarchy, 0, Point() );
+				mu[i] = moments( contours[i], false );
 			}
 		}
-		
-	//	printf("%d\n",contours.size());
 
-		searchForMovement(skinMat,cameraFeed);
+	  vector<Point2f> mc( contours.size() );
+      for( size_t i = 0; i < contours.size(); i++ )
+        { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
+
+      Mat prediction = KF.predict();
+      Point predictPt(prediction.at<float>(0),prediction.at<float>(1));
+	  
+	  for(size_t i = 0; i < mc.size(); i++)
+        {
+		drawCross(cameraFeed, mc[i], Scalar(255, 0, 0), 5);
+          measurement(0) = mc[i].x;
+          measurement(1) = mc[i].y;
+        }
+
+	  Mat estimated = KF.correct(measurement);
+      Point statePt(estimated.at<float>(0),estimated.at<float>(1));
+
+	  printf("x: %d\ny: %d\n",estimated.at<float>(0),estimated.at<float>(1));
+	  drawCross(cameraFeed, statePt, Scalar(128, 128, 128), 5);
+	  
+
+		//searchForMovement(skinMat,cameraFeed);
 
 		imshow("Skin Image",skinMat);
 	    imshow("Original Image",cameraFeed);
