@@ -78,6 +78,7 @@ cv::Mat skindetector::getSkin(cv::Mat input)
     return skin;
 }
 
+
 void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 	//notice how we use the '&' operator for objectDetected and cameraFeed. This is because we wish
 	//to take the values passed into the function and manipulate them, rather than just working with a copy.
@@ -163,23 +164,35 @@ void initFunctions(KalmanFilter KF){
 
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    Mat cameraFeed,skinMat,null;
+    Mat cameraFeed,skinMat,fore,back;
     skindetector mySkinDetector;
-    vector<vector<Point> > contours;
-	vector<Vec4i> hierarchy;
+    vector<vector<Point> > contours,bContours;
+	vector<Vec4i> hierarchy,bHierarchy;
 	cv:RNG rng;	
 	KalmanFilter KF(4, 2, 0);
-	initFunctions(KF);
 	bool flag = false;
 	int numberOfPeople = 0;
 	cv::Rect window;
 	int windowHeight = 480, windowWidth = 320;
 
 
+	// background detection properties
+	cv::BackgroundSubtractorMOG2 bg;
+    bg.nmixtures = 5;
+    bg.bShadowDetection = false;
+	bg.history = 380;
+	bg.varThreshold = 5;
+	
+	//Init Kalman filter configurations
+	initFunctions(KF);
+
 	//open capture object at location zero (default location for webcam)
-
-    capture.open(0);
-
+	while(1){
+		if(capture.open(0)){
+			break;
+		}
+		else printf("cant open camera");
+	}
     //set height and width of capture frame
 	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
 	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);
@@ -189,7 +202,7 @@ int main(int argc, const char *argv[]) {
 	window.width = windowWidth;
 	window.height = windowHeight;
 
-     //Create a structuring element
+    //Create a structuring element
     int erosion_size = 2;
     Mat element = getStructuringElement(cv::MORPH_CROSS,
                                         cv::Size(erosion_size +1 ,erosion_size + 1),
@@ -207,13 +220,26 @@ int main(int argc, const char *argv[]) {
         capture.read(cameraFeed);
 
         //show the current image
-        skinMat= mySkinDetector.getSkin(cameraFeed);
+        skinMat = mySkinDetector.getSkin(cameraFeed);
+
 		cv::erode(skinMat, skinMat, element);
-		cv::dilate(skinMat, skinMat, element); 
+		cv::dilate(skinMat, skinMat, element);
 
+		bg.operator ()(cameraFeed,fore);
+		cv::erode(fore,fore,element);
+		cv::dilate(fore,fore,element);
+		cv::findContours(fore,bContours,bHierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,cv::Point(0,0));
+		
+		//Get Skin contours
 		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0));
-      
+        	
+		for(int i = 0;i < bContours.size();i++){
+			if(cv::contourArea(bContours[i]) > 5000){
+				cv::drawContours( cameraFeed, bContours, i,cv::Scalar(0,0,255), 1.5, 1, bHierarchy, CV_16SC1, cv::Point() );
+			}
+		}
 
+		
 	    int j = -1;
 		for( int i = 0; i< contours.size(); i++) {
 			if(cv::contourArea(contours[i]) > 700){
@@ -244,11 +270,10 @@ int main(int argc, const char *argv[]) {
 			flag = false;
 
 		
-		//searchForMovement(skinMat,cameraFeed);
-
 		imshow("Skin Image",skinMat);
 	    imshow("Original Image",cameraFeed);
         waitKey(30);
     }
     return 0;
 }
+
