@@ -3,6 +3,8 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
+#include <CLEyeMulticam.h>
+
 
 using namespace std;
 using namespace cv;
@@ -50,12 +52,12 @@ private:
 {
     //YCrCb threshold
     // You can change the values and see what happens
-    Y_MIN  = 0;
-    Y_MAX  = 255;
+    Y_MIN  = 40;
+    Y_MAX  = 235;
     Cr_MIN = 133;
-    Cr_MAX = 160;
-    Cb_MIN = 70;
-    Cb_MAX = 127;
+    Cr_MAX = 180;
+    Cb_MIN = 75;
+    Cb_MAX = 135;
 }
 
 skindetector::~skindetector(void)
@@ -180,23 +182,23 @@ int main(int argc, const char *argv[]) {
 	cv::BackgroundSubtractorMOG2 bg;
     bg.nmixtures = 5;
     bg.bShadowDetection = false;
-	bg.history = 380;
-	bg.varThreshold = 5;
+	bg.history = 500;
+	bg.varThreshold = 16;
 	
 	//Init Kalman filter configurations
 	initFunctions(KF);
 
 	//open capture object at location zero (default location for webcam)
-	while(1){
-		if(capture.open(0)){
-			break;
-		}
-		else printf("cant open camera");
-	}
-    //set height and width of capture frame
-	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
-	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);
+	//set height and width of capture frame
 
+
+	//capture.open(0);
+	
+
+	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
+	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);	
+	//capture.open("d:\\test.avi");
+	//resizeWindow("Original Image",320,480);
 	window.x = 0;
 	window.y = 0;
 	window.width = windowWidth;
@@ -213,7 +215,8 @@ int main(int argc, const char *argv[]) {
 
     //start an infinite loop where webcam feed is copied to cameraFeed matrix
     //all of our operations will be performed within this loop
-    while(1){
+
+	while(1){
 		double contourArea = 0;
 
         //store image to matrix
@@ -221,11 +224,13 @@ int main(int argc, const char *argv[]) {
 
         //show the current image
         skinMat = mySkinDetector.getSkin(cameraFeed);
+		bg.operator ()(cameraFeed,fore);
 
 		cv::erode(skinMat, skinMat, element);
 		cv::dilate(skinMat, skinMat, element);
+		
 
-		bg.operator ()(cameraFeed,fore);
+			
 		cv::erode(fore,fore,element);
 		cv::dilate(fore,fore,element);
 		cv::findContours(fore,bContours,bHierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,cv::Point(0,0));
@@ -234,7 +239,7 @@ int main(int argc, const char *argv[]) {
 		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0));
         	
 		for(int i = 0;i < bContours.size();i++){
-			if(cv::contourArea(bContours[i]) > 5000){
+			if(cv::contourArea(bContours[i]) > 500){
 				cv::drawContours( cameraFeed, bContours, i,cv::Scalar(0,0,255), 1.5, 1, bHierarchy, CV_16SC1, cv::Point() );
 			}
 		}
@@ -251,6 +256,7 @@ int main(int argc, const char *argv[]) {
 			}
 		}
 
+		
 		Moments mu;	
 		Point2f mc = -1;
 
@@ -272,7 +278,7 @@ int main(int argc, const char *argv[]) {
 		
 		imshow("Skin Image",skinMat);
 	    imshow("Original Image",cameraFeed);
-        waitKey(30);
+        waitKey(16);
     }
     return 0;
 }
