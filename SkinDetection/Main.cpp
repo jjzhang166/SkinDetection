@@ -3,7 +3,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
-#include <CLEyeMulticam.h>
 
 
 using namespace std;
@@ -52,7 +51,7 @@ private:
 {
     //YCrCb threshold
     // You can change the values and see what happens
-    Y_MIN  = 40;
+    Y_MIN  = 0;
     Y_MAX  = 235;
     Cr_MIN = 133;
     Cr_MAX = 180;
@@ -192,7 +191,7 @@ int main(int argc, const char *argv[]) {
 	//set height and width of capture frame
 
 
-	//capture.open(0);
+	capture.open(0);
 	
 
 	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
