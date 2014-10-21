@@ -86,14 +86,23 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 	//eg. we draw to the cameraFeed to be displayed in the main() function.
 	int xMax = 0,yMax = 0,xMin = 50000,yMin = 50000;
 	bool objectDetected = false;
+/*	Mat temp;
+	thresholdImage.copyTo(temp);
+*/	//these two vectors needed for output of findContours
+	vector<Vec4i> hierarchy;
+	vector<vector<Point>> contours;
 	Mat temp;
 	thresholdImage.copyTo(temp);
-	//these two vectors needed for output of findContours
-	vector< vector<Point> > contours;
-	vector<Vec4i> hierarchy;
+	
+	findContours(temp,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_TC89_KCOS );
+	
+	//if contours vector is not empty, we have found some objects
+	if(contours.size()>0) objectDetected=true;
+	else objectDetected = false;
+
 	//find contours of filtered image using openCV findContours function
 	//findContours(temp,contours,hierarchy,CV_RETR_CCOMP,CV_CHAIN_APPROX_SIMPLE );// retrieves all contours
-	findContours(temp,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE );// retrieves external contours
+	// retrieves external contours
 	
 	//if contours vector is not empty, we have found some objects
 	if(contours.size()>0) objectDetected=true;
@@ -102,36 +111,51 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 	if(objectDetected){
 		//the largest contour is found at the end of the contours vector
 		//we will simply assume that the biggest contour is the object we are looking for.
-		vector< vector<Point> > largestContourVec;
-		largestContourVec.push_back(contours[contours.size()-1]);
 		//make a bounding rectangle around the largest contour then find its centroid
 		//this will be the object's final estimated position.
-
+		vector<Point> largerContour;
+		int area = 0;
 		//this code get the max and minimal points at the contours
 
-		for(int i = 0;i < largestContourVec[0].size();i++){		
-			if(xMax < largestContourVec[0][i].x){
-				xMax = largestContourVec[0][i].x;
+		for(int i = 0;i < contours.size();i++){	
+			if(contourArea(contours[i]) > 1000){
+				for(int j = 0;j < contours[i].size();j++){	
+					if(area < contourArea(contours[i])){
+						largerContour = contours[i];
+						area = contourArea(contours[i]);
+					}
+				}
+			}
+		}
+
+		for(int i = 0;i < largerContour.size();i++){
+			
+			if(xMax < largerContour[i].x){
+				xMax = largerContour[i].x;
 			}
 
-			if(xMin > largestContourVec[0][i].x){
-				xMin = largestContourVec[0][i].x;
+			if(xMin > largerContour[i].x){
+				xMin = largerContour[i].x;
 			}
 
-			if(yMax < largestContourVec[0][i].y){
-				yMax = largestContourVec[0][i].y;
+			if(yMax < largerContour[i].y){
+				yMax = largerContour[i].y;
 			}
 
-			if(yMin > largestContourVec[0][i].y){
-				yMin = largestContourVec[0][i].y;
+			if(yMin > largerContour[i].y){
+				yMin = largerContour[i].y;
 			}
 		}
 
 		//printf("%d\n",largestContourVec[0].size());
 		//printf("Xmax: %d\nXmin: %d\nYMax: %d\nYMin: %d\n",xMax,xMin,yMax,yMin);
-
+		line(cameraFeed,Point(xMin,yMax),Point(xMax,yMax),Scalar(0,0,255),2);
+		line(cameraFeed,Point(xMax,yMax),Point(xMax,yMin),Scalar(0,0,255),2);
+		line(cameraFeed,Point(xMax,yMin),Point(xMin,yMin),Scalar(0,0,255),2);
+		line(cameraFeed,Point(xMin,yMin),Point(xMin,yMax),Scalar(0,0,255),2);
 		//update the objects positions by changing the 'theObject' array values
 	}
+	
 	//make some temp x and y variables so we dont have to type out so much
 	//int x = theObject[0];
 	//int y = theObject[1];
@@ -139,13 +163,6 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 	//draw some crosshairs around the object
 	
 	//circle(cameraFeed,Point(x,y),20,Scalar(0,255,0),2);
-	
-	line(cameraFeed,Point(xMin,yMax),Point(xMax,yMax),Scalar(0,0,255),1);
-	line(cameraFeed,Point(xMax,yMax),Point(xMax,yMin),Scalar(0,0,255),1);
-	line(cameraFeed,Point(xMax,yMin),Point(xMin,yMin),Scalar(0,0,255),1);
-	line(cameraFeed,Point(xMin,yMin),Point(xMin,yMax),Scalar(0,0,255),1);
-	
-	//write the position of the object to the screen
 }
 
 void initFunctions(KalmanFilter KF){
@@ -179,10 +196,9 @@ int main(int argc, const char *argv[]) {
 
 	// background detection properties
 	cv::BackgroundSubtractorMOG2 bg;
-    bg.nmixtures = 5;
+    bg.nmixtures = 3;
     bg.bShadowDetection = false;
-	bg.history = 500;
-	bg.varThreshold = 16;
+
 	
 	//Init Kalman filter configurations
 	initFunctions(KF);
@@ -223,26 +239,13 @@ int main(int argc, const char *argv[]) {
 
         //show the current image
         skinMat = mySkinDetector.getSkin(cameraFeed);
-		bg.operator ()(cameraFeed,fore);
-
 		cv::erode(skinMat, skinMat, element);
 		cv::dilate(skinMat, skinMat, element);
-		
-
-			
+		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0)); //Get Skin contours
+	
+		bg.operator ()(cameraFeed,fore);
 		cv::erode(fore,fore,element);
-		cv::dilate(fore,fore,element);
-		cv::findContours(fore,bContours,bHierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,cv::Point(0,0));
-		
-		//Get Skin contours
-		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0));
-        	
-		for(int i = 0;i < bContours.size();i++){
-			if(cv::contourArea(bContours[i]) > 500){
-				cv::drawContours( cameraFeed, bContours, i,cv::Scalar(0,0,255), 1.5, 1, bHierarchy, CV_16SC1, cv::Point() );
-			}
-		}
-
+		cv::dilate(fore,fore,element);		
 		
 	    int j = -1;
 		for( int i = 0; i< contours.size(); i++) {
@@ -274,10 +277,11 @@ int main(int argc, const char *argv[]) {
 		if(!mc.inside(window))
 			flag = false;
 
-		
+		searchForMovement(fore,cameraFeed);
+
 		imshow("Skin Image",skinMat);
 	    imshow("Original Image",cameraFeed);
-        waitKey(16);
+        waitKey(30);
     }
     return 0;
 }
