@@ -80,7 +80,7 @@ cv::Mat skindetector::getSkin(cv::Mat input)
 }
 
 
-void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
+bool searchForMovement(Mat thresholdImage, Mat &cameraFeed,Rect *rect){
 	//notice how we use the '&' operator for objectDetected and cameraFeed. This is because we wish
 	//to take the values passed into the function and manipulate them, rather than just working with a copy.
 	//eg. we draw to the cameraFeed to be displayed in the main() function.
@@ -147,6 +147,12 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 			}
 		}
 
+		rect->x = xMin;
+		rect->y = yMin;
+		rect->height = yMax - yMin;
+		rect->width = xMax - xMin;
+
+
 		//printf("%d\n",largestContourVec[0].size());
 		//printf("Xmax: %d\nXmin: %d\nYMax: %d\nYMin: %d\n",xMax,xMin,yMax,yMin);
 		line(cameraFeed,Point(xMin,yMax),Point(xMax,yMax),Scalar(0,0,255),2);
@@ -156,6 +162,9 @@ void searchForMovement(Mat thresholdImage, Mat &cameraFeed){
 		//update the objects positions by changing the 'theObject' array values
 	}
 	
+	if(objectDetected)
+		return true;
+	else return false;
 	//make some temp x and y variables so we dont have to type out so much
 	//int x = theObject[0];
 	//int y = theObject[1];
@@ -180,9 +189,33 @@ void initFunctions(KalmanFilter KF){
     setIdentity(KF.errorCovPost, Scalar::all(.1));
 }
 
+Mat getImagePart(Mat image,Rect partRect){
+		
+
+
+	Mat imagePart(partRect.width,partRect.height,CV_8UC3);
+
+	//printf("linhas : %d\nColunas :%d\n",imagePart.rows,imageRect.cols);
+
+	//printf("linhas : %d\nColunas :%d\n",image.rows,image.cols);
+
+    Vec3b color;
+
+	for(int i = 0 ; i < imagePart.rows;i++){
+		for(int j = 0;j < imagePart.cols;j++){
+
+			color = image.at<Vec3b>(Point(i+partRect.x,j+partRect.y));
+			imagePart.at<Vec3b>(Point(j,i)) = color;
+
+		}
+	}
+
+	return imagePart;
+}
+
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    Mat cameraFeed,skinMat,fore,back;
+    Mat cameraFeed,skinMat,fore,back,imagePart;
     skindetector mySkinDetector;
     vector<vector<Point> > contours,bContours;
 	vector<Vec4i> hierarchy,bHierarchy;
@@ -190,8 +223,10 @@ int main(int argc, const char *argv[]) {
 	KalmanFilter KF(4, 2, 0);
 	bool flag = false;
 	int numberOfPeople = 0;
-	cv::Rect window;
-	int windowHeight = 480, windowWidth = 320;
+	Rect window;
+	Rect partRect;
+
+	int windowHeight = 480, windowWidth = 450;
 
 
 	// background detection properties
@@ -277,9 +312,10 @@ int main(int argc, const char *argv[]) {
 		if(!mc.inside(window))
 			flag = false;
 
-		searchForMovement(fore,cameraFeed);
+		if(searchForMovement(fore,cameraFeed,&partRect))
+			imagePart = getImagePart(cameraFeed,partRect);
 
-		imshow("Skin Image",skinMat);
+		imshow("Skin Image",imagePart);
 	    imshow("Original Image",cameraFeed);
         waitKey(30);
     }
