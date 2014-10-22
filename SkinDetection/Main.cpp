@@ -23,15 +23,6 @@ int theObject[2] = {0,0};
 //bounding rectangle of the object, we will use the center of this as its position.
 Rect objectBoundingRectangle = Rect(0,0,0,0);
 
-
-//  skindetector.cpp
-//  oo
-////
-////  Created by João Lucas Sisanoski on 03/10/14.
-////  Copyright (c) 2014 João Lucas Sisanoski. All rights reserved.
-////
-//
-using namespace std;
 class skindetector
 {
 public:
@@ -51,10 +42,10 @@ private:
 {
     //YCrCb threshold
     // You can change the values and see what happens
-    Y_MIN  = 0;
+    Y_MIN  = 30;
     Y_MAX  = 235;
     Cr_MIN = 133;
-    Cr_MAX = 180;
+    Cr_MAX = 170;
     Cb_MIN = 75;
     Cb_MAX = 135;
 }
@@ -79,16 +70,46 @@ cv::Mat skindetector::getSkin(cv::Mat input)
     return skin;
 }
 
+Mat getImagePart(Mat image,Rect partRect){
+		
 
-bool searchForMovement(Mat thresholdImage, Mat &cameraFeed,Rect *rect){
+	//Mat imagePart;
+	Mat imagePart(partRect.height,partRect.width,CV_8UC3);
+
+    Vec3b color;
+	//printf("x: %d\ny: %d\nheight: %d\nwidth: %d\n",partRect.x,partRect.y,partRect.height,partRect.width);
+	for(int i = 0 ; i < imagePart.rows;i++){
+		for(int j = 0;j < imagePart.cols;j++){
+
+			color = image.at<Vec3b>(Point(j+partRect.x,i+partRect.y));
+			imagePart.at<Vec3b>(Point(j,i)) = color;
+		}
+	}
+
+	//imshow("Skin Image",outputImage);
+	return imagePart;
+}
+
+Mat clearImage(){
+	Mat image(100,100,CV_8UC3);
+
+	Vec3b color(255,255,255);
+	for(int i = 0;i < image.rows;i ++){
+		for(int j = 0;j < image.cols;j++){
+			image.at<Vec3b>(Point(j,i)) = color;
+		}
+	}
+	return image;
+}
+
+Mat searchForMovement(Mat thresholdImage, Mat &cameraFeed,Mat output,bool *moveDetect){
 	//notice how we use the '&' operator for objectDetected and cameraFeed. This is because we wish
 	//to take the values passed into the function and manipulate them, rather than just working with a copy.
 	//eg. we draw to the cameraFeed to be displayed in the main() function.
 	int xMax = 0,yMax = 0,xMin = 50000,yMin = 50000;
-	bool objectDetected = false;
-/*	Mat temp;
-	thresholdImage.copyTo(temp);
-*/	//these two vectors needed for output of findContours
+	bool objectDetected = false,peopleDetect = false;
+	Rect rect;
+	//these two vectors needed for output of findContours
 	vector<Vec4i> hierarchy;
 	vector<vector<Point>> contours;
 	Mat temp;
@@ -123,6 +144,7 @@ bool searchForMovement(Mat thresholdImage, Mat &cameraFeed,Rect *rect){
 					if(area < contourArea(contours[i])){
 						largerContour = contours[i];
 						area = contourArea(contours[i]);
+						peopleDetect = true;
 					}
 				}
 			}
@@ -147,11 +169,12 @@ bool searchForMovement(Mat thresholdImage, Mat &cameraFeed,Rect *rect){
 			}
 		}
 
-		rect->x = xMin;
-		rect->y = yMin;
-		rect->height = yMax - yMin;
-		rect->width = xMax - xMin;
+		rect.x = xMin;
+		rect.y = yMin;
+		rect.height = yMax - yMin;
+		rect.width = xMax - xMin;
 
+		
 
 		//printf("%d\n",largestContourVec[0].size());
 		//printf("Xmax: %d\nXmin: %d\nYMax: %d\nYMin: %d\n",xMax,xMin,yMax,yMin);
@@ -159,12 +182,16 @@ bool searchForMovement(Mat thresholdImage, Mat &cameraFeed,Rect *rect){
 		line(cameraFeed,Point(xMax,yMax),Point(xMax,yMin),Scalar(0,0,255),2);
 		line(cameraFeed,Point(xMax,yMin),Point(xMin,yMin),Scalar(0,0,255),2);
 		line(cameraFeed,Point(xMin,yMin),Point(xMin,yMax),Scalar(0,0,255),2);
+		
 		//update the objects positions by changing the 'theObject' array values
 	}
 	
-	if(objectDetected)
-		return true;
-	else return false;
+	if(peopleDetect){
+		*moveDetect = true;
+		return getImagePart(cameraFeed,rect);
+	}
+	*moveDetect = false;
+	return output;
 	//make some temp x and y variables so we dont have to type out so much
 	//int x = theObject[0];
 	//int y = theObject[1];
@@ -173,7 +200,6 @@ bool searchForMovement(Mat thresholdImage, Mat &cameraFeed,Rect *rect){
 	
 	//circle(cameraFeed,Point(x,y),20,Scalar(0,255,0),2);
 }
-
 void initFunctions(KalmanFilter KF){
 	KF.statePre.at<float>(0) = 0;
     KF.statePre.at<float>(1) = 0;
@@ -189,46 +215,24 @@ void initFunctions(KalmanFilter KF){
     setIdentity(KF.errorCovPost, Scalar::all(.1));
 }
 
-Mat getImagePart(Mat image,Rect partRect){
-		
 
-
-	Mat imagePart(partRect.width,partRect.height,CV_8UC3);
-
-	//printf("linhas : %d\nColunas :%d\n",imagePart.rows,imageRect.cols);
-
-	//printf("linhas : %d\nColunas :%d\n",image.rows,image.cols);
-
-    Vec3b color;
-
-	for(int i = 0 ; i < imagePart.rows;i++){
-		for(int j = 0;j < imagePart.cols;j++){
-
-			color = image.at<Vec3b>(Point(i+partRect.x,j+partRect.y));
-			imagePart.at<Vec3b>(Point(j,i)) = color;
-
-		}
-	}
-
-	return imagePart;
-}
 
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    Mat cameraFeed,skinMat,fore,back,imagePart;
+    Mat cameraFeed,skinMat,fore,movement;
     skindetector mySkinDetector;
     vector<vector<Point> > contours,bContours;
 	vector<Vec4i> hierarchy,bHierarchy;
 	cv:RNG rng;	
 	KalmanFilter KF(4, 2, 0);
-	bool flag = false;
+	bool flag = false,moveDetect = false;
 	int numberOfPeople = 0;
 	Rect window;
 	Rect partRect;
+	movement = clearImage();
 
-	int windowHeight = 480, windowWidth = 450;
-
-
+	int windowHeight = 320, windowWidth = 400;
+	
 	// background detection properties
 	cv::BackgroundSubtractorMOG2 bg;
     bg.nmixtures = 3;
@@ -269,18 +273,24 @@ int main(int argc, const char *argv[]) {
 	while(1){
 		double contourArea = 0;
 
-        //store image to matrix
-        capture.read(cameraFeed);
+		capture.read(cameraFeed);
 
-        //show the current image
-        skinMat = mySkinDetector.getSkin(cameraFeed);
+		bg.operator ()(cameraFeed,fore);
+		cv::erode(fore,fore,element);
+		cv::dilate(fore,fore,element);	
+
+		movement = searchForMovement(fore,cameraFeed,movement,&moveDetect);
+		
+		if(!moveDetect)
+			movement = clearImage();
+
+		skinMat = mySkinDetector.getSkin(movement);
+
 		cv::erode(skinMat, skinMat, element);
 		cv::dilate(skinMat, skinMat, element);
 		cv::findContours(skinMat,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point(0,0)); //Get Skin contours
 	
-		bg.operator ()(cameraFeed,fore);
-		cv::erode(fore,fore,element);
-		cv::dilate(fore,fore,element);		
+	
 		
 	    int j = -1;
 		for( int i = 0; i< contours.size(); i++) {
@@ -293,14 +303,13 @@ int main(int argc, const char *argv[]) {
 			}
 		}
 
-		
 		Moments mu;	
 		Point2f mc = -1;
 
 		if(j >= 0){
 			mu = moments( contours[j], false );
 			mc = Point2f( mu.m10/mu.m00 , mu.m01/mu.m00 ); 
-			drawCross(cameraFeed, mc, Scalar(255, 0, 0), 5);
+			//drawCross(cameraFeed, mc, Scalar(255, 0, 0), 5);
 		}
  
 		if(mc.inside(window) && flag == false){
@@ -311,12 +320,9 @@ int main(int argc, const char *argv[]) {
 
 		if(!mc.inside(window))
 			flag = false;
-
-		if(searchForMovement(fore,cameraFeed,&partRect))
-			imagePart = getImagePart(cameraFeed,partRect);
-
-		imshow("Skin Image",imagePart);
-	    imshow("Original Image",cameraFeed);
+	    
+		imshow("skinDetection",skinMat);
+		imshow("Original Image",cameraFeed);
         waitKey(30);
     }
     return 0;
