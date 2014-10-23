@@ -4,7 +4,6 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
-
 using namespace std;
 using namespace cv;
 
@@ -42,8 +41,8 @@ private:
 {
     //YCrCb threshold
     // You can change the values and see what happens
-    Y_MIN  = 30;
-    Y_MAX  = 235;
+    Y_MIN  = 0;
+    Y_MAX  = 255;
     Cr_MIN = 133;
     Cr_MAX = 170;
     Cb_MIN = 75;
@@ -85,7 +84,6 @@ Mat getImagePart(Mat image,Rect partRect){
 			imagePart.at<Vec3b>(Point(j,i)) = color;
 		}
 	}
-
 	//imshow("Skin Image",outputImage);
 	return imagePart;
 }
@@ -215,11 +213,35 @@ void initFunctions(KalmanFilter KF){
     setIdentity(KF.errorCovPost, Scalar::all(.1));
 }
 
+Mat imageConvert(Mat bgr_image){
+    cv::Mat lab_image;
 
+		cv::cvtColor(bgr_image, lab_image, CV_BGR2Lab);
+
+		// Extract the L channel
+		std::vector<cv::Mat> lab_planes(4);
+		cv::split(lab_image, lab_planes);  // now we have the L image in lab_planes[0]
+
+		// apply the CLAHE algorithm to the L channel
+		cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+		clahe->setClipLimit(3);
+		cv::Mat dst;
+		clahe->apply(lab_planes[0], dst);
+
+		// Merge the the color planes back into an Lab image
+		dst.copyTo(lab_planes[0]);
+		cv::merge(lab_planes, lab_image);
+
+	   // convert back to RGB
+	   cv::Mat image_clahe;
+	   cv::cvtColor(lab_image, image_clahe, CV_Lab2BGR);
+
+	   return image_clahe;
+}
 
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    Mat cameraFeed,skinMat,fore,movement;
+    Mat cameraFeed,skinMat,fore,movement,back;
     skindetector mySkinDetector;
     vector<vector<Point> > contours,bContours;
 	vector<Vec4i> hierarchy,bHierarchy;
@@ -250,7 +272,9 @@ int main(int argc, const char *argv[]) {
 	
 
 	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
-	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);	
+	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);
+	capture.set(CV_CAP_PROP_HUE,8); //HUE 8
+	capture.set(CV_CAP_PROP_SATURATION,93); //saturation 93
 	//capture.open("d:\\test.avi");
 	//resizeWindow("Original Image",320,480);
 	window.x = 0;
@@ -269,13 +293,14 @@ int main(int argc, const char *argv[]) {
 
     //start an infinite loop where webcam feed is copied to cameraFeed matrix
     //all of our operations will be performed within this loop
-
+	int alpha = 0,beta = 0;
 	while(1){
 		double contourArea = 0;
 
 		capture.read(cameraFeed);
+		back = imageConvert(cameraFeed);
 
-		bg.operator ()(cameraFeed,fore);
+		bg.operator ()(back,fore);
 		cv::erode(fore,fore,element);
 		cv::dilate(fore,fore,element);	
 
