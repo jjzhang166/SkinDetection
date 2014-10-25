@@ -11,6 +11,8 @@ using namespace cv;
 line(img, Point(center.x - d, center.y - d), Point(center.x + d, center.y + d), color, 2, CV_AA, 0);\
 line(img, Point(center.x + d, center.y - d), Point(center.x - d, center.y + d), color, 2, CV_AA, 0 )\
 
+//Define the standard window size
+const static int windowHeight = 288, windowWidth = 352;
 
 //our sensitivity value to be used in the absdiff() function
 const static int SENSITIVITY_VALUE = 20;
@@ -198,6 +200,7 @@ Mat searchForMovement(Mat thresholdImage, Mat &cameraFeed,Mat output,bool *moveD
 	
 	//circle(cameraFeed,Point(x,y),20,Scalar(0,255,0),2);
 }
+
 void initFunctions(KalmanFilter KF){
 	KF.statePre.at<float>(0) = 0;
     KF.statePre.at<float>(1) = 0;
@@ -239,9 +242,24 @@ Mat imageConvert(Mat bgr_image){
 	   return image_clahe;
 }
 
+void initRectSize(int x, int y, int width, int height,Rect *rect){
+	rect->x = x;
+	rect->y = y;
+	rect->width = width;
+	rect->height = height;
+}
+
+void initCapture(VideoCapture* capture){
+	capture->open(0);
+	capture->set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
+	capture->set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);
+	capture->set(CV_CAP_PROP_HUE,8); //HUE 8
+	capture->set(CV_CAP_PROP_SATURATION,93); //saturation 93
+}
+
 int main(int argc, const char *argv[]) {
     VideoCapture capture;
-    Mat cameraFeed,skinMat,fore,movement,back;
+    Mat cameraFeed,skinMat,fore,movement,back,leftFrame,rightFrame;
     skindetector mySkinDetector;
     vector<vector<Point> > contours,bContours;
 	vector<Vec4i> hierarchy,bHierarchy;
@@ -249,12 +267,11 @@ int main(int argc, const char *argv[]) {
 	KalmanFilter KF(4, 2, 0);
 	bool flag = false,moveDetect = false;
 	int numberOfPeople = 0;
-	Rect window;
-	Rect partRect;
-	movement = clearImage();
+	movement = clearImage();	
+	Rect leftR,rightR,window,partRect;
 
-	int windowHeight = 320, windowWidth = 400;
-	
+
+
 	// background detection properties
 	cv::BackgroundSubtractorMOG2 bg;
     bg.nmixtures = 3;
@@ -263,24 +280,12 @@ int main(int argc, const char *argv[]) {
 	
 	//Init Kalman filter configurations
 	initFunctions(KF);
-
-	//open capture object at location zero (default location for webcam)
-	//set height and width of capture frame
-
-
-	capture.open(0);
-	
-
-	capture.set(CV_CAP_PROP_FRAME_WIDTH,windowWidth);
-	capture.set(CV_CAP_PROP_FRAME_HEIGHT,windowHeight);
-	capture.set(CV_CAP_PROP_HUE,8); //HUE 8
-	capture.set(CV_CAP_PROP_SATURATION,93); //saturation 93
-	//capture.open("d:\\test.avi");
-	//resizeWindow("Original Image",320,480);
-	window.x = 0;
-	window.y = 0;
-	window.width = windowWidth;
-	window.height = windowHeight;
+	// init camera capture configuration
+	initCapture(&capture);
+	// init rect sizes
+	initRectSize(0,0,windowWidth,windowHeight,&window); //Used to search the skins in the window.
+	initRectSize(0,0,50,windowHeight,&leftR);//Used to detect people in the left of the window.
+	initRectSize(windowWidth - 50,0,50,windowHeight,&rightR);//Used to detect people in the left of the window.
 
     //Create a structuring element
     int erosion_size = 2;
@@ -298,18 +303,23 @@ int main(int argc, const char *argv[]) {
 		double contourArea = 0;
 
 		capture.read(cameraFeed);
+
+		//printf("Linahs: %d\nColunas: %d\n",cameraFeed.rows,cameraFeed.cols);
+		
 		back = imageConvert(cameraFeed);
 
 		bg.operator ()(back,fore);
 		cv::erode(fore,fore,element);
 		cv::dilate(fore,fore,element);	
 
-		movement = searchForMovement(fore,cameraFeed,movement,&moveDetect);
+		//movement = searchForMovement(fore,cameraFeed,movement,&moveDetect);
 		
-		if(!moveDetect)
-			movement = clearImage();
+		//if(!moveDetect)
+			//movement = clearImage();
 
-		skinMat = mySkinDetector.getSkin(movement);
+		leftFrame = getImagePart(cameraFeed,leftR);
+		
+		skinMat = mySkinDetector.getSkin(leftFrame);
 
 		cv::erode(skinMat, skinMat, element);
 		cv::dilate(skinMat, skinMat, element);
@@ -318,6 +328,7 @@ int main(int argc, const char *argv[]) {
 	
 		
 	    int j = -1;
+
 		for( int i = 0; i< contours.size(); i++) {
 			if(cv::contourArea(contours[i]) > 700){
 				if(cv::contourArea(contours[i]) > contourArea){
@@ -330,11 +341,12 @@ int main(int argc, const char *argv[]) {
 
 		Moments mu;	
 		Point2f mc = -1;
-
+		
 		if(j >= 0){
 			mu = moments( contours[j], false );
+			//mc = Point2f( mu.nu20,mu.nu20 ); 
 			mc = Point2f( mu.m10/mu.m00 , mu.m01/mu.m00 ); 
-			//drawCross(cameraFeed, mc, Scalar(255, 0, 0), 5);
+			drawCross(cameraFeed, mc, Scalar(255, 0, 0), 5);
 		}
  
 		if(mc.inside(window) && flag == false){
