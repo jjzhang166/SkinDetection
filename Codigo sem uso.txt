@@ -1,0 +1,138 @@
+
+Mat imageConvert(Mat bgr_image){
+    cv::Mat lab_image;
+
+		cv::cvtColor(bgr_image, lab_image, CV_BGR2Lab);
+
+		// Extract the L channel
+		std::vector<cv::Mat> lab_planes(4);
+		cv::split(lab_image, lab_planes);  // now we have the L image in lab_planes[0]
+
+		// apply the CLAHE algorithm to the L channel
+		cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+		clahe->setClipLimit(3);
+		cv::Mat dst;
+		clahe->apply(lab_planes[0], dst);
+
+		// Merge the the color planes back into an Lab image
+		dst.copyTo(lab_planes[0]);
+		cv::merge(lab_planes, lab_image);
+
+	   // convert back to RGB
+	   cv::Mat image_clahe;
+	   cv::cvtColor(lab_image, image_clahe, CV_Lab2BGR);
+
+	   return image_clahe;
+}
+
+
+Mat searchForMovement(Mat thresholdImage, Mat &cameraFeed,Mat output,bool *moveDetect){
+	//notice how we use the '&' operator for objectDetected and cameraFeed. This is because we wish
+	//to take the values passed into the function and manipulate them, rather than just working with a copy.
+	//eg. we draw to the cameraFeed to be displayed in the main() function.
+	int xMax = 0,yMax = 0,xMin = 50000,yMin = 50000;
+	bool objectDetected = false,peopleDetect = false;
+	Rect rect;
+	vector<Vec4i> hierarchy;
+	vector<vector<Point>> contours;
+	Mat temp;
+	thresholdImage.copyTo(temp);
+	
+	findContours(temp,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_TC89_KCOS );
+	
+	if(contours.size()>0) objectDetected=true;
+	else objectDetected = false;
+
+	if(contours.size()>0) objectDetected=true;
+	else objectDetected = false;
+
+	if(objectDetected){
+
+		vector<Point> largerContour;
+		int area = 0;
+
+		for(int i = 0;i < (int)contours.size();i++){	
+			if(contourArea(contours[i]) > 1000){
+				for(int j = 0;j < (int)contours[i].size();j++){	
+					if(area < contourArea(contours[i])){
+						largerContour = contours[i];
+						area = (int)contourArea(contours[i]);
+						peopleDetect = true;
+					}
+				}
+			}
+		}
+
+		for(int i = 0;i < (int)largerContour.size();i++){
+			
+			if(xMax < largerContour[i].x){
+				xMax = largerContour[i].x;
+			}
+
+			if(xMin > largerContour[i].x){
+				xMin = largerContour[i].x;
+			}
+
+			if(yMax < largerContour[i].y){
+				yMax = largerContour[i].y;
+			}
+
+			if(yMin > largerContour[i].y){
+				yMin = largerContour[i].y;
+			}
+		}
+
+		rect.x = xMin;
+		rect.y = yMin;
+		rect.height = yMax - yMin;
+		rect.width = xMax - xMin;
+
+		
+
+		//printf("%d\n",largestContourVec[0].size());
+		//printf("Xmax: %d\nXmin: %d\nYMax: %d\nYMin: %d\n",xMax,xMin,yMax,yMin);
+		line(cameraFeed,Point(xMin,yMax),Point(xMax,yMax),Scalar(0,0,255),2);
+		line(cameraFeed,Point(xMax,yMax),Point(xMax,yMin),Scalar(0,0,255),2);
+		line(cameraFeed,Point(xMax,yMin),Point(xMin,yMin),Scalar(0,0,255),2);
+		line(cameraFeed,Point(xMin,yMin),Point(xMin,yMax),Scalar(0,0,255),2);
+		
+		//update the objects positions by changing the 'theObject' array values
+	}
+	
+	if(peopleDetect){
+		*moveDetect = true;
+		return getImagePart(cameraFeed,rect);
+	}
+	*moveDetect = false;
+	return output;
+	//make some temp x and y variables so we dont have to type out so much
+	//int x = theObject[0];
+	//int y = theObject[1];
+	
+	//draw some crosshairs around the object
+	
+	//circle(cameraFeed,Point(x,y),20,Scalar(0,255,0),2);
+}
+
+Mat clearImage(){
+	Mat image(100,100,CV_8UC3);
+
+	Vec3b color(255,255,255);
+	for(int i = 0;i < image.rows;i ++){
+		for(int j = 0;j < image.cols;j++){
+			image.at<Vec3b>(Point(j,i)) = color;
+		}
+	}
+	return image;
+}
+
+
+	    #define drawCross( img, center, color, d )\
+line(img, Point(center.x - d, center.y - d), Point(center.x + d, center.y + d), color, 2, CV_AA, 0);\
+line(img, Point(center.x + d, center.y - d), Point(center.x - d, center.y + d), color, 2, CV_AA, 0 )\
+
+//we'll have just one object to search for
+//and keep track of its position.
+int theObject[2] = {0,0};
+//bounding rectangle of the object, we will use the center of this as its position.
+Rect objectBoundingRectangle = Rect(0,0,0,0);
