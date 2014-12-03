@@ -9,10 +9,7 @@ using namespace cv;
 
 //Define the standard window size
 const static int windowHeight = 288, windowWidth = 352;
-//our sensitivity value to be used in the absdiff() function
-const static int SENSITIVITY_VALUE = 20;
-//size of blur used to smooth the intensity image output from absdiff() function
-const static int BLUR_SIZE = 10;
+
 
 class skindetector
 {
@@ -71,21 +68,6 @@ Mat getImagePart(Mat image,Rect partRect){
 		}
 	}
 	return imagePart;
-}
-
-void initFunctions(KalmanFilter KF){
-	KF.statePre.at<float>(0) = 0;
-    KF.statePre.at<float>(1) = 0;
-    KF.statePre.at<float>(2) = 0;
-    KF.statePre.at<float>(3) = 0;
-
-    KF.transitionMatrix = *(Mat_<float>(4, 4) << 1,0,1,0,   0,1,0,1,  0,0,1,0,  0,0,0,1); // Including velocity
-    KF.processNoiseCov = *(cv::Mat_<float>(4,4) << 0.2,0,0.2,0,  0,0.2,0,0.2,  0,0,0.3,0,  0,0,0,0.3);
-
-    setIdentity(KF.measurementMatrix);
-    setIdentity(KF.processNoiseCov, Scalar::all(1e-4));
-    setIdentity(KF.measurementNoiseCov, Scalar::all(1e-1));
-    setIdentity(KF.errorCovPost, Scalar::all(.1));
 }
 
 void initRectSize(int x, int y, int width, int height,Rect *rect){
@@ -150,7 +132,6 @@ int main() {
     vector<vector<Point> > leftContours,rightContours;
 	vector<Point2f> leftDirection(5),rightDirection(5);
 	vector<Vec4i> leftHierarchy,rightHierarchy;
-	KalmanFilter KF(4, 2, 0);
 	Rect leftR,rightR,window,partRect;
 
 	bool lFlag = false,rFlag = false;
@@ -161,7 +142,6 @@ int main() {
 
 	
 	//Init Kalman filter configurations
-	initFunctions(KF);
 	// init camera capture configuration
 	initCapture(&capture);
 	// init rect sizes
